@@ -16,5 +16,5 @@ COPY app ./app
 
 EXPOSE 8000
 
-# Bind all interfaces so the public host can reach the API.
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Bind all interfaces. Use host PORT (Render/Railway) when set, else 8000.
+CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"]

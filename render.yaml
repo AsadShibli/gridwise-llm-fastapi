@@ -1,0 +1,17 @@
+# Render Blueprint: FastAPI only. Set secret values in the dashboard, not here.
+services:
+  - type: web
+    name: gridwise-llm-fastapi
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /health
+    envVars:
+      - key: GROQ_API_KEY
+        sync: false
+      - key: OPENROUTER_API_KEY
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: LLM_TIMEOUT_SECONDS
+        value: "12"
