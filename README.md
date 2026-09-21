@@ -6,6 +6,15 @@ Phase 1 (online) is this GridWise API. Phase 2 was a separate on-site problem.
 
 This repo is a **Python** stack: FastAPI for the judge endpoints, PuLP/CBC for the schedule, and a Django console (login + history) on PostgreSQL.
 
+**Live API:** https://gridwise-llm-fastapi.onrender.com
+
+The free Render instance can sleep. The first request after idle may take about 30–60 seconds.
+
+```bash
+curl https://gridwise-llm-fastapi.onrender.com/health
+curl -X POST https://gridwise-llm-fastapi.onrender.com/optimize-energy -H "Content-Type: application/json" -d @sample.json
+```
+
 ```
 Energy Data + Operator Notes → LLM Interpreter → Guardrail Validator → Math Optimizer → Replay Validator → API Response
 ```
