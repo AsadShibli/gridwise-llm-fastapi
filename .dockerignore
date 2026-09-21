@@ -1,0 +1,11 @@
+# Ignore secrets and local junk; keep the image small.
+.env
+.venv
+__pycache__/
+*.pyc
+.git
+docs
+*.pdf
+# Large case pack — not needed in images. Keep sample.json for Django's default profile.
+BUP_CSE_FEST_2026_Preli_Public_Sample_Cases.json
+hidden_posts

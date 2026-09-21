@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block title %}{{ run.scenario_id }}{% endblock %}
+{% block content %}
+<h1>{{ run.scenario_id }}</h1>
+<p>Status: <strong class="{% if run.status == 'success' %}ok{% else %}err{% endif %}">{{ run.status }}</strong>
+   · {{ run.created_at }}</p>
+{% if run.error_message %}<p class="err">{{ run.error_message }}</p>{% endif %}
+<h2>Notes</h2>
+<ol>{% for note in run.operator_notes %}<li>{{ note }}</li>{% endfor %}</ol>
+{% if run.response_payload %}
+<p>{{ run.response_payload.plan_summary }}</p>
+<p>Grid {{ run.total_grid_kwh }} kWh · Cost {{ run.total_cost_bdt }} BDT · Peak {{ run.peak_grid_kwh }} kWh</p>
+<h2>Directive interpretation</h2>
+<table>
+  <thead><tr><th>#</th><th>Type</th><th>Applies</th><th>Adjustment</th><th>Explanation</th></tr></thead>
+  <tbody>
+    {% for d in run.response_payload.directive_interpretation %}
+    <tr>
+      <td>{{ d.note_index }}</td>
+      <td>{{ d.directive_type }}</td>
+      <td>{{ d.applies }}</td>
+      <td>{{ d.structured_adjustment }}</td>
+      <td>{{ d.explanation }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+<h2>Hourly plan</h2>
+<table>
+  <thead>
+    <tr><th>Hour</th><th>Grid</th><th>Solar used</th><th>Action</th><th>kWh</th><th>Energy after</th></tr>
+  </thead>
+  <tbody>
+    {% for h in run.response_payload.hourly_plan %}
+    <tr>
+      <td>{{ h.hour }}</td>
+      <td>{{ h.grid_kwh }}</td>
+      <td>{{ h.solar_used_kwh }}</td>
+      <td>{{ h.battery_action }}</td>
+      <td>{{ h.battery_kwh }}</td>
+      <td>{{ h.battery_energy_after_kwh }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endif %}
+<p><a href="{% url 'run_list' %}">Back to history</a></p>
+{% endblock %}

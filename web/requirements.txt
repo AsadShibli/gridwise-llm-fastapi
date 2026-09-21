@@ -1,0 +1,6 @@
+# Django console (portfolio layer). FastAPI deps stay in the repo root.
+Django>=5.1
+psycopg[binary]>=3.2
+python-dotenv>=1.0.0
+httpx>=0.27.0
+gunicorn>=22.0.0

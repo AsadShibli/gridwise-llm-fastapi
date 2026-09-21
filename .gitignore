@@ -1,0 +1,13 @@
+.env
+.venv
+__pycache__/
+*.pyc
+web/.env
+web/db.sqlite3
+web/staticfiles/
+
+# Editor / local
+.cursor/
+.vscode/
+*.egg-info/
+.idea/

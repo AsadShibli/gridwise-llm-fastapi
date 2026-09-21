@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block title %}Run history{% endblock %}
+{% block content %}
+<h1>Your runs</h1>
+<p><a href="{% url 'run_new' %}">New optimization</a></p>
+{% if runs %}
+<table>
+  <thead>
+    <tr><th>When</th><th>Scenario</th><th>Notes</th><th>Status</th><th>Cost (BDT)</th></tr>
+  </thead>
+  <tbody>
+    {% for run in runs %}
+    <tr>
+      <td>{{ run.created_at }}</td>
+      <td><a href="{% url 'run_detail' run.pk %}">{{ run.scenario_id }}</a></td>
+      <td>{{ run.operator_notes|join:"; "|truncatechars:80 }}</td>
+      <td>{{ run.status }}</td>
+      <td>{% if run.total_cost_bdt != None %}{{ run.total_cost_bdt }}{% else %}—{% endif %}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p>No runs yet.</p>
+{% endif %}
+{% endblock %}
