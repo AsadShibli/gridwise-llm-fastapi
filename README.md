@@ -4,7 +4,25 @@ Energy-optimization API for the **BUP CSE Fest 2026** hackathon (BUP Computer Pr
 
 Phase 1 (online) is this GridWise API. Phase 2 was a separate on-site problem.
 
-This repo is a **Python** stack: FastAPI for the judge endpoints, PuLP/CBC for the schedule, and a Django console (login + history) on PostgreSQL.
+## Problem it solves
+
+Campus power comes from the **grid**, **rooftop solar**, and a **battery** over 24 hours (`0`–`23`). Operators send **1–3 natural-language notes** (some are distractors). This API turns notes into structured directives, validates them, solves a linear program for the schedule, replays it, and **minimizes grid electricity cost**.
+
+```
+Energy Data + Operator Notes → LLM Interpreter → Guardrail Validator → Math Optimizer → Replay Validator → API Response
+```
+
+## Tech stack
+
+| Piece | Choice |
+|---|---|
+| API | **FastAPI** + Pydantic (`GET /health`, `POST /optimize-energy` only) |
+| LLM | Notes-only prompt; Free-AI Gateway, then **Groq**, then OpenRouter, then Gemini |
+| Guardrails | [`app/guardrails.py`](app/guardrails.py) — typed JSON, hour ranges, `no_op` |
+| Optimizer | **PuLP + CBC** ([`app/optimizer.py`](app/optimizer.py)) |
+| Replay | [`app/replay.py`](app/replay.py) |
+| Console | **Django** + PostgreSQL/SQLite ([`web/`](web/README.md)) — does not change judge routes |
+| Deploy | **Docker** on **Render** |
 
 **Live API:** https://gridwise-llm-fastapi.onrender.com
 
@@ -15,9 +33,9 @@ curl https://gridwise-llm-fastapi.onrender.com/health
 curl -X POST https://gridwise-llm-fastapi.onrender.com/optimize-energy -H "Content-Type: application/json" -d @sample.json
 ```
 
-```
-Energy Data + Operator Notes → LLM Interpreter → Guardrail Validator → Math Optimizer → Replay Validator → API Response
-```
+Swagger UI (`/docs`):
+
+![Swagger UI for GET /health and POST /optimize-energy](docs/screenshots/swagger-docs.png)
 
 ---
 
@@ -84,18 +102,7 @@ If the Problem Statement and the Guide disagree: **Problem Statement** wins for 
 
 ---
 
-## This implementation
-
-| Piece | Choice |
-|---|---|
-| API | FastAPI + Pydantic (`GET /health`, `POST /optimize-energy` only) |
-| LLM | Notes-only prompt; try Free-AI Gateway, then Groq, then OpenRouter, then Gemini |
-| Guardrails | [`app/guardrails.py`](app/guardrails.py) — typed JSON, hour ranges, `no_op` |
-| Optimizer | PuLP + CBC ([`app/optimizer.py`](app/optimizer.py)) |
-| Replay | [`app/replay.py`](app/replay.py) |
-| Console | Django + Postgres/SQLite ([`web/`](web/README.md)) — does not change judge routes |
-
----
+<!-- Stack table moved to “Tech stack” at the top so GitHub shows it first. -->
 
 ## How to run the API
 
@@ -136,6 +143,10 @@ Secrets are not baked into the image. Env names: `GROQ_API_KEY`, `FREE_AI_GATEWA
 ## Django console
 
 Login, submit notes, store runs. Calls this repo’s FastAPI `POST /optimize-energy`. Details: [`web/README.md`](web/README.md).
+
+![Django console — new optimization form](docs/screenshots/django-new-run.png)
+
+![Django console — run detail with directives and hourly plan](docs/screenshots/django-run-detail.png)
 
 ```powershell
 cd web
