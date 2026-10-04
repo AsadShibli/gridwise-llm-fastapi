@@ -21,12 +21,35 @@ Energy Data + Operator Notes → LLM Interpreter → Guardrail Validator → Mat
 | Guardrails | [`app/guardrails.py`](app/guardrails.py) — typed JSON, hour ranges, `no_op` |
 | Optimizer | **PuLP + CBC** ([`app/optimizer.py`](app/optimizer.py)) |
 | Replay | [`app/replay.py`](app/replay.py) |
-| Console | **Django** + PostgreSQL/SQLite ([`web/`](web/README.md)) — does not change judge routes |
+| Web console | Single-page UI served by FastAPI at `/` ([`app/static/index.html`](app/static/index.html)) — no build step |
+| Django console | **Django** + PostgreSQL/SQLite ([`web/`](web/README.md)) — does not change judge routes |
 | Deploy | **Docker** on **Render** |
 
-**Live API:** https://gridwise-llm-fastapi.onrender.com
+### 🔗 Live links
 
-The free Render instance can sleep. The first request after idle may take about 30–60 seconds.
+| What | URL |
+|---|---|
+| **Interactive console (try it)** | **https://gridwise-llm-fastapi.onrender.com/** |
+| API base | https://gridwise-llm-fastapi.onrender.com |
+| Swagger docs | https://gridwise-llm-fastapi.onrender.com/docs |
+| Health | https://gridwise-llm-fastapi.onrender.com/health |
+
+The free Render instance can sleep. The first request after idle may take about 30–60 seconds; the console shows a "waking server" status while it starts.
+
+### Web console
+
+Open the live link above (or http://127.0.0.1:8000/ locally) to use the API without writing JSON:
+
+- **Scenario builder:** load any of the 10 public samples in one click, edit 1–3 operator notes (with quick-insert examples), battery limits, and the 24-hour demand/solar/tariff profile. You can also paste a full request JSON.
+- **Pipeline view:** follows the request through LLM interpreter → guardrails → LP optimizer → replay check → response, with live health status and validation errors mapped to the step that rejected them.
+- **Directive cards:** each note shows how the LLM read it: directive type, parameters, the affected hours on a 24-hour strip, and the explanation (including guardrail downgrades to `no_op`).
+- **Results:** total cost, savings against a solar-only/no-battery baseline, grid energy and peak import; an hourly energy-mix chart (solar, battery, grid, charging vs. demand) and a battery state-of-charge vs. tariff chart, both with hover details; the full hourly plan table.
+- **Raw exchange:** response JSON, request JSON, and a ready-to-run cURL command with copy and download.
+- Light/dark theme, mobile layout, `Ctrl+Enter` to run, recent runs kept in the browser.
+
+![GridWise web console: scenario builder, pipeline, KPIs, and directive cards](docs/screenshots/gridwise-console.jpg)
+
+The console only calls the existing `GET /health` and `POST /optimize-energy`; the judge contract is unchanged.
 
 ```bash
 curl https://gridwise-llm-fastapi.onrender.com/health
@@ -120,7 +143,7 @@ curl http://127.0.0.1:8000/health
 curl -X POST http://127.0.0.1:8000/optimize-energy -H "Content-Type: application/json" -d @sample.json
 ```
 
-Swagger UI: [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs).
+Web console: [http://127.0.0.1:8000/](http://127.0.0.1:8000/) · Swagger UI: [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs).
 
 ```bash
 python -m tests.test_health

@@ -1,0 +1,843 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GridWise Console</title>
+<meta name="description" content="Interactive console for the GridWise LLM energy optimizer: operator notes → LLM directives → guardrails → LP schedule.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%230f766e'/><path d='M18 4 8 18h7l-2 10 11-15h-7z' fill='%23fde68a'/></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #f5f6f4;
+  --panel: #ffffff;
+  --panel-2: #f9faf8;
+  --ink: #15201d;
+  --ink-2: #4a5753;
+  --ink-3: #7b8783;
+  --line: #e2e6e3;
+  --line-2: #eef1ee;
+  --accent: #0f766e;
+  --accent-ink: #ffffff;
+  --accent-soft: #e3f3f1;
+  --solar: #e8a317;
+  --grid: #3b6fd8;
+  --dis: #14a37f;
+  --chg: #8b5cf6;
+  --tariff: #d9480f;
+  --danger: #c92a2a;
+  --danger-soft: #fdecec;
+  --ok: #2b8a3e;
+  --warn: #b7791f;
+  --shadow: 0 1px 2px rgba(16,24,22,.05), 0 4px 16px rgba(16,24,22,.05);
+  --radius: 14px;
+  --mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0e1412; --panel: #151d1a; --panel-2: #1a2420; --ink: #e7eeeb; --ink-2: #aebbb6; --ink-3: #7d8b86;
+    --line: #26322e; --line-2: #1f2a26; --accent: #2dd4bf; --accent-ink: #062b27; --accent-soft: #123430;
+    --solar: #f2b84b; --grid: #6b9cf5; --dis: #34d399; --chg: #a78bfa; --tariff: #ff8a5c;
+    --danger: #ff6b6b; --danger-soft: #3a1a1a; --ok: #51cf66; --warn: #fcc419;
+    --shadow: 0 1px 2px rgba(0,0,0,.3), 0 6px 20px rgba(0,0,0,.25); color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0e1412; --panel: #151d1a; --panel-2: #1a2420; --ink: #e7eeeb; --ink-2: #aebbb6; --ink-3: #7d8b86;
+  --line: #26322e; --line-2: #1f2a26; --accent: #2dd4bf; --accent-ink: #062b27; --accent-soft: #123430;
+  --solar: #f2b84b; --grid: #6b9cf5; --dis: #34d399; --chg: #a78bfa; --tariff: #ff8a5c;
+  --danger: #ff6b6b; --danger-soft: #3a1a1a; --ok: #51cf66; --warn: #fcc419;
+  --shadow: 0 1px 2px rgba(0,0,0,.3), 0 6px 20px rgba(0,0,0,.25); color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body { background: var(--bg); color: var(--ink); font: 14px/1.5 Inter, system-ui, -apple-system, "Segoe UI", sans-serif; -webkit-font-smoothing: antialiased; }
+button, input, select, textarea { font: inherit; color: inherit; }
+a { color: var(--accent); }
+.mono { font-family: var(--mono); }
+.muted { color: var(--ink-3); }
+
+/* Top bar */
+.top { position: sticky; top: 0; z-index: 20; background: color-mix(in srgb, var(--bg) 85%, transparent); backdrop-filter: blur(10px); border-bottom: 1px solid var(--line); }
+.top-in { max-width: 1440px; margin: 0 auto; padding: 12px 20px; display: flex; align-items: center; gap: 14px; }
+.brand { display: flex; align-items: center; gap: 10px; font-weight: 700; letter-spacing: -.01em; font-size: 16px; }
+.brand-mark { width: 30px; height: 30px; border-radius: 8px; background: var(--accent); display: grid; place-items: center; }
+.brand small { font-weight: 500; color: var(--ink-3); font-size: 12px; margin-left: 2px; }
+.top .spacer { flex: 1; }
+.pill { display: inline-flex; align-items: center; gap: 7px; padding: 5px 11px; border-radius: 999px; border: 1px solid var(--line); background: var(--panel); font-size: 12.5px; color: var(--ink-2); white-space: nowrap; }
+.dot { width: 8px; height: 8px; border-radius: 50%; background: var(--ink-3); }
+.dot.ok { background: var(--ok); box-shadow: 0 0 0 3px color-mix(in srgb, var(--ok) 25%, transparent); }
+.dot.wait { background: var(--warn); animation: pulse 1.2s infinite; }
+.dot.bad { background: var(--danger); }
+@keyframes pulse { 50% { opacity: .35; } }
+.icon-btn { border: 1px solid var(--line); background: var(--panel); border-radius: 9px; height: 32px; min-width: 32px; padding: 0 10px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; color: var(--ink-2); font-size: 13px; text-decoration: none; }
+.icon-btn:hover { color: var(--ink); border-color: var(--ink-3); }
+
+/* Layout */
+.wrap { max-width: 1440px; margin: 0 auto; padding: 20px; display: grid; grid-template-columns: minmax(340px, 430px) 1fr; gap: 20px; align-items: start; }
+@media (max-width: 980px) { .wrap { grid-template-columns: 1fr; padding: 16px; } .top-in { padding: 10px 16px; } .hide-sm { display: none !important; } }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); }
+.side { position: sticky; top: 76px; max-height: calc(100vh - 92px); display: flex; flex-direction: column; overflow: hidden; }
+@media (max-width: 980px) { .side { position: static; max-height: none; } }
+.side-scroll { overflow-y: auto; padding: 18px 18px 8px; }
+.side-foot { padding: 14px 18px; border-top: 1px solid var(--line); background: var(--panel); display: flex; gap: 10px; align-items: center; }
+.sec { margin-bottom: 20px; }
+.sec-h { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+.sec-h h3 { margin: 0; font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--ink-3); font-weight: 600; }
+.link-btn { background: none; border: 0; color: var(--accent); cursor: pointer; font-size: 12.5px; font-weight: 500; padding: 2px 4px; border-radius: 6px; }
+.link-btn:hover { background: var(--accent-soft); }
+.link-btn:disabled { color: var(--ink-3); cursor: default; background: none; }
+
+select.input, input.input, textarea.input { width: 100%; border: 1px solid var(--line); background: var(--panel-2); border-radius: 10px; padding: 9px 11px; outline: none; transition: border-color .15s, box-shadow .15s; }
+.input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); background: var(--panel); }
+textarea.input { resize: none; overflow: hidden; min-height: 44px; line-height: 1.45; }
+label.f { display: block; font-size: 12px; color: var(--ink-2); margin-bottom: 4px; font-weight: 500; }
+
+.presets { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 4px; scrollbar-width: thin; }
+.chip { flex: none; border: 1px solid var(--line); background: var(--panel-2); border-radius: 999px; padding: 5px 11px; cursor: pointer; font-size: 12.5px; color: var(--ink-2); white-space: nowrap; }
+.chip:hover { border-color: var(--ink-3); color: var(--ink); }
+.chip.on { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.preset-label { font-size: 12.5px; color: var(--ink-3); margin-top: 6px; min-height: 18px; }
+
+.note { position: relative; margin-bottom: 8px; }
+.note-idx { position: absolute; left: 10px; top: 9px; font-family: var(--mono); font-size: 11px; color: var(--ink-3); }
+.note textarea { padding-left: 34px; padding-right: 32px; }
+.note .x { position: absolute; right: 6px; top: 6px; width: 24px; height: 24px; border: 0; border-radius: 6px; background: transparent; color: var(--ink-3); cursor: pointer; font-size: 16px; line-height: 1; }
+.note .x:hover { background: var(--danger-soft); color: var(--danger); }
+.ideas { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+.idea { border: 1px dashed var(--line); background: transparent; border-radius: 8px; padding: 4px 9px; font-size: 12px; color: var(--ink-2); cursor: pointer; }
+.idea:hover { border-color: var(--accent); color: var(--accent); }
+
+.bgrid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.bgrid .full { grid-column: 1 / -1; }
+.unit { position: relative; }
+.unit span { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); font-size: 11.5px; color: var(--ink-3); pointer-events: none; }
+.unit input { padding-right: 46px; }
+
+.spark { border: 1px solid var(--line); border-radius: 10px; background: var(--panel-2); padding: 8px 10px 6px; }
+.spark svg { width: 100%; height: 74px; display: block; }
+.legend { display: flex; flex-wrap: wrap; gap: 12px; font-size: 12px; color: var(--ink-2); }
+.legend i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 5px; vertical-align: -1px; }
+.legend i.ln { height: 3px; border-radius: 2px; vertical-align: 2px; }
+
+.hours-table { width: 100%; border-collapse: collapse; font-size: 12.5px; margin-top: 8px; }
+.hours-table th { text-align: left; font-weight: 500; color: var(--ink-3); padding: 4px 4px; font-size: 11.5px; position: sticky; top: 0; background: var(--panel); }
+.hours-table td { padding: 2px 3px; }
+.hours-table td:first-child { font-family: var(--mono); color: var(--ink-3); width: 36px; }
+.hours-table input { width: 100%; border: 1px solid transparent; background: var(--panel-2); border-radius: 6px; padding: 4px 6px; font-family: var(--mono); font-size: 12px; outline: none; }
+.hours-table input:focus { border-color: var(--accent); background: var(--panel); }
+.hours-box { max-height: 300px; overflow: auto; border: 1px solid var(--line); border-radius: 10px; padding: 0 6px 6px; }
+
+.btn { border: 0; border-radius: 11px; padding: 11px 18px; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
+.btn-primary { background: var(--accent); color: var(--accent-ink); flex: 1; font-size: 15px; }
+.btn-primary:hover { filter: brightness(1.06); }
+.btn-primary:disabled { opacity: .6; cursor: progress; }
+.btn-ghost { background: var(--panel-2); border: 1px solid var(--line); color: var(--ink-2); }
+.kbd { font-family: var(--mono); font-size: 11px; padding: 1px 5px; border-radius: 5px; background: color-mix(in srgb, var(--accent-ink) 20%, transparent); opacity: .85; }
+.spinner { width: 16px; height: 16px; border-radius: 50%; border: 2px solid currentColor; border-right-color: transparent; animation: spin .8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* Main */
+.main { display: flex; flex-direction: column; gap: 20px; min-width: 0; }
+.pipe { padding: 16px 18px; }
+.steps { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; }
+@media (max-width: 640px) { .steps { gap: 5px; } .step { padding: 7px 6px; text-align: center; } .step small { display: none; } .step b { font-size: 11px; line-height: 1.25; } }
+.step { border: 1px solid var(--line); border-radius: 11px; padding: 10px 12px; background: var(--panel-2); position: relative; transition: border-color .2s, background .2s; }
+.step b { display: block; font-size: 13px; }
+.step small { color: var(--ink-3); font-size: 11.5px; line-height: 1.35; display: block; margin-top: 2px; }
+.step .n { font-family: var(--mono); font-size: 11px; color: var(--ink-3); }
+.step.active { border-color: var(--accent); background: var(--accent-soft); }
+.step.active .n::after { content: ""; display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); margin-left: 6px; animation: pulse 1s infinite; vertical-align: 1px; }
+.step.done { border-color: color-mix(in srgb, var(--ok) 50%, var(--line)); }
+.step.done .n::after { content: " ✓"; color: var(--ok); }
+.step.fail { border-color: var(--danger); background: var(--danger-soft); }
+.pipe-foot { margin-top: 10px; font-size: 12.5px; color: var(--ink-3); min-height: 19px; }
+
+.empty { padding: 44px 28px; text-align: center; }
+.empty h2 { margin: 6px 0 6px; font-size: 22px; letter-spacing: -.02em; }
+.empty p { color: var(--ink-2); max-width: 560px; margin: 0 auto 6px; }
+.empty .big { font-size: 40px; }
+
+.kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+@media (max-width: 760px) { .kpis { grid-template-columns: repeat(2, 1fr); } }
+.kpi { padding: 14px 16px; }
+.kpi .lbl { font-size: 12px; color: var(--ink-3); font-weight: 500; }
+.kpi .val { font-size: 25px; font-weight: 700; letter-spacing: -.02em; margin-top: 2px; font-variant-numeric: tabular-nums; }
+.kpi .val small { font-size: 13px; font-weight: 500; color: var(--ink-3); margin-left: 3px; }
+.kpi .sub { font-size: 12px; color: var(--ink-3); margin-top: 2px; }
+.kpi .sub.good { color: var(--ok); }
+
+.panel { padding: 16px 18px; }
+.panel-h { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-bottom: 12px; flex-wrap: wrap; }
+.panel-h h2 { margin: 0; font-size: 15px; letter-spacing: -.01em; }
+.panel-h .muted { font-size: 12.5px; }
+.summary { padding: 12px 16px; display: flex; gap: 10px; align-items: flex-start; font-size: 14px; color: var(--ink-2); }
+.summary .meta { margin-left: auto; white-space: nowrap; font-size: 12px; color: var(--ink-3); }
+
+.dirs { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; }
+.dir { border: 1px solid var(--line); border-radius: 12px; padding: 13px 14px; background: var(--panel-2); border-left: 4px solid var(--c, var(--ink-3)); display: flex; flex-direction: column; gap: 9px; }
+.dir.noop { opacity: .78; }
+.dir-q { font-size: 13px; color: var(--ink-2); font-style: italic; line-height: 1.45; }
+.dir-q .ni { font-style: normal; font-family: var(--mono); font-size: 11px; color: var(--ink-3); margin-right: 4px; }
+.badge { display: inline-flex; align-items: center; gap: 6px; padding: 3px 9px; border-radius: 999px; font-size: 12px; font-weight: 600; background: color-mix(in srgb, var(--c) 15%, transparent); color: var(--c); }
+.params { display: flex; flex-wrap: wrap; gap: 6px; }
+.param { font-family: var(--mono); font-size: 11.5px; padding: 2px 7px; border-radius: 6px; background: var(--panel); border: 1px solid var(--line); color: var(--ink-2); }
+.strip { display: grid; grid-template-columns: repeat(24, 1fr); gap: 2px; }
+.strip span { height: 10px; border-radius: 2px; background: var(--line); }
+.strip span.on { background: var(--c); }
+.strip-axis { display: flex; justify-content: space-between; font-family: var(--mono); font-size: 10px; color: var(--ink-3); margin-top: 2px; }
+.dir-exp { font-size: 12.5px; color: var(--ink-3); }
+
+.chart-box { position: relative; }
+.chart-box svg { width: 100%; display: block; overflow: visible; }
+.chart-box text { font-family: Inter, system-ui, sans-serif; }
+.tip { position: absolute; pointer-events: none; background: var(--ink); color: var(--bg); padding: 8px 10px; border-radius: 9px; font-size: 12px; line-height: 1.5; min-width: 170px; box-shadow: var(--shadow); opacity: 0; transition: opacity .1s; z-index: 5; }
+.tip b { font-weight: 600; }
+.tip .r { display: flex; justify-content: space-between; gap: 14px; font-variant-numeric: tabular-nums; }
+.tip i { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 5px; }
+.two { display: grid; grid-template-columns: 1fr; gap: 20px; }
+
+.tbl-wrap { overflow-x: auto; }
+table.plan { width: 100%; border-collapse: collapse; font-size: 12.5px; font-variant-numeric: tabular-nums; }
+table.plan th { text-align: right; color: var(--ink-3); font-weight: 500; font-size: 11.5px; padding: 6px 8px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+table.plan td { text-align: right; padding: 5px 8px; border-bottom: 1px solid var(--line-2); white-space: nowrap; }
+table.plan th:first-child, table.plan td:first-child { text-align: left; }
+table.plan td:first-child { font-family: var(--mono); color: var(--ink-2); }
+table.plan tr.constrained td:first-child { box-shadow: inset 3px 0 0 var(--accent); }
+table.plan tfoot td { font-weight: 600; border-top: 1px solid var(--line); border-bottom: 0; }
+.act { display: inline-block; min-width: 72px; text-align: center; padding: 1px 8px; border-radius: 999px; font-size: 11.5px; font-weight: 600; }
+.act.charge { background: color-mix(in srgb, var(--chg) 16%, transparent); color: var(--chg); }
+.act.discharge { background: color-mix(in srgb, var(--dis) 16%, transparent); color: var(--dis); }
+.act.idle { background: var(--line-2); color: var(--ink-3); }
+
+.tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--line); margin-bottom: 10px; }
+.tab { border: 0; background: none; padding: 8px 12px; cursor: pointer; color: var(--ink-3); font-weight: 500; border-bottom: 2px solid transparent; margin-bottom: -1px; }
+.tab.on { color: var(--ink); border-bottom-color: var(--accent); }
+pre.code { margin: 0; background: var(--panel-2); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; font: 12px/1.55 var(--mono); overflow: auto; max-height: 420px; white-space: pre; color: var(--ink-2); }
+
+.err { border-color: var(--danger); background: var(--danger-soft); padding: 14px 16px; }
+.err h3 { margin: 0 0 4px; font-size: 14px; color: var(--danger); }
+.err pre { margin: 6px 0 0; white-space: pre-wrap; font: 12px/1.5 var(--mono); color: var(--ink-2); }
+
+.history { display: flex; flex-direction: column; gap: 4px; }
+.hist { display: flex; justify-content: space-between; gap: 8px; align-items: center; border: 1px solid var(--line); background: var(--panel-2); border-radius: 9px; padding: 6px 10px; cursor: pointer; font-size: 12.5px; text-align: left; width: 100%; }
+.hist:hover { border-color: var(--ink-3); }
+.hist span:last-child { color: var(--ink-3); font-family: var(--mono); font-size: 11.5px; }
+
+.modal-bg { position: fixed; inset: 0; background: rgba(0,0,0,.45); display: none; align-items: center; justify-content: center; z-index: 50; padding: 16px; }
+.modal-bg.on { display: flex; }
+.modal { width: min(720px, 100%); max-height: 90vh; display: flex; flex-direction: column; gap: 10px; padding: 18px; }
+.modal textarea { min-height: 320px; font: 12px/1.5 var(--mono); }
+.modal .row { display: flex; gap: 8px; justify-content: flex-end; align-items: center; }
+.toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%) translateY(20px); background: var(--ink); color: var(--bg); padding: 9px 16px; border-radius: 10px; font-size: 13px; opacity: 0; transition: all .2s; z-index: 60; pointer-events: none; }
+.toast.on { opacity: 1; transform: translateX(-50%); }
+.hidden { display: none !important; }
+footer { max-width: 1440px; margin: 0 auto; padding: 4px 20px 28px; color: var(--ink-3); font-size: 12.5px; }
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="top-in">
+    <div class="brand">
+      <div class="brand-mark"><svg width="18" height="18" viewBox="0 0 32 32"><path d="M18 3 7 18h7.5l-2 11L24 13.5h-7.5z" fill="#fde68a"/></svg></div>
+      GridWise <small class="hide-sm">LLM energy optimizer</small>
+    </div>
+    <div class="spacer"></div>
+    <span class="pill" id="health" title="GET /health"><span class="dot wait"></span><span>Checking API…</span></span>
+    <a class="icon-btn hide-sm" href="docs" target="_blank" rel="noopener">API docs</a>
+    <a class="icon-btn hide-sm" href="https://github.com/AsadShibli/gridwise-llm-fastapi" target="_blank" rel="noopener">GitHub</a>
+    <button class="icon-btn" id="themeBtn" title="Toggle theme" aria-label="Toggle theme">◐</button>
+  </div>
+</header>
+
+<div class="wrap">
+  <!-- Scenario builder -->
+  <aside class="card side">
+    <div class="side-scroll">
+      <div class="sec">
+        <div class="sec-h"><h3>Start from a sample</h3><button class="link-btn" id="importBtn">Paste JSON</button></div>
+        <div class="presets" id="presets"></div>
+        <div class="preset-label" id="presetLabel"></div>
+      </div>
+
+      <div class="sec">
+        <div class="sec-h"><h3>Operator notes <span class="muted" id="noteCount" style="text-transform:none;letter-spacing:0"></span></h3><button class="link-btn" id="addNote">+ Add note</button></div>
+        <div id="notes"></div>
+        <div class="ideas" id="ideas"></div>
+      </div>
+
+      <div class="sec">
+        <div class="sec-h"><h3>Battery</h3></div>
+        <div class="bgrid">
+          <div class="full"><label class="f" for="b_cap">Capacity</label><div class="unit"><input class="input" type="number" min="0" step="any" id="b_cap"><span>kWh</span></div></div>
+          <div><label class="f" for="b_init">Initial energy</label><div class="unit"><input class="input" type="number" min="0" step="any" id="b_init"><span>kWh</span></div></div>
+          <div><label class="f" for="b_min">Minimum energy</label><div class="unit"><input class="input" type="number" min="0" step="any" id="b_min"><span>kWh</span></div></div>
+          <div><label class="f" for="b_chg">Max charge</label><div class="unit"><input class="input" type="number" min="0" step="any" id="b_chg"><span>kWh/h</span></div></div>
+          <div><label class="f" for="b_dis">Max discharge</label><div class="unit"><input class="input" type="number" min="0" step="any" id="b_dis"><span>kWh/h</span></div></div>
+        </div>
+      </div>
+
+      <div class="sec">
+        <div class="sec-h"><h3>24-hour profile</h3><button class="link-btn" id="toggleHours">Edit hours</button></div>
+        <div class="spark">
+          <svg id="spark" viewBox="0 0 360 74" preserveAspectRatio="none" aria-label="Demand, solar and tariff profile"></svg>
+          <div class="legend" style="margin-top:4px">
+            <span><i style="background:var(--ink-3)"></i>Demand</span>
+            <span><i style="background:var(--solar)"></i>Solar</span>
+            <span><i class="ln" style="background:var(--tariff)"></i>Tariff</span>
+          </div>
+        </div>
+        <div class="hours-box hidden" id="hoursBox" style="margin-top:8px">
+          <table class="hours-table">
+            <thead><tr><th>Hr</th><th>Demand kWh</th><th>Solar kWh</th><th>Tariff ৳/kWh</th></tr></thead>
+            <tbody id="hoursBody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="sec" id="histSec">
+        <div class="sec-h"><h3>Recent runs</h3><button class="link-btn" id="clearHist">Clear</button></div>
+        <div class="history" id="history"></div>
+      </div>
+
+      <div class="sec">
+        <label class="f" for="scenarioId">Scenario ID</label>
+        <input class="input mono" id="scenarioId">
+      </div>
+    </div>
+    <div class="side-foot">
+      <button class="btn btn-primary" id="runBtn"><span id="runLabel">Optimize schedule</span> <span class="kbd hide-sm">Ctrl ⏎</span></button>
+    </div>
+  </aside>
+
+  <!-- Results -->
+  <main class="main">
+    <section class="card pipe">
+      <div class="steps" id="steps">
+        <div class="step" data-s="0"><span class="n">01</span><b>LLM interpreter</b><small>Notes → structured directives</small></div>
+        <div class="step" data-s="1"><span class="n">02</span><b>Guardrails</b><small>Types, hours, ranges checked</small></div>
+        <div class="step" data-s="2"><span class="n">03</span><b>LP optimizer</b><small>PuLP + CBC minimizes cost</small></div>
+        <div class="step" data-s="3"><span class="n">04</span><b>Replay check</b><small>Balance, bounds, directives</small></div>
+        <div class="step" data-s="4"><span class="n">05</span><b>Response</b><small>Plan + totals from plan</small></div>
+      </div>
+      <div class="pipe-foot" id="pipeFoot">The LLM only sees the notes, never demand, solar or tariff numbers.</div>
+    </section>
+
+    <section class="card empty" id="emptyState">
+      <div class="big">⚡</div>
+      <h2>Turn operator notes into a cost-optimal 24-hour schedule</h2>
+      <p>Pick a sample on the left or write your own notes, such as <em>“the feeder is capped at 150 kWh from 6 to 9 PM”</em>, then run the optimizer.</p>
+      <p class="muted" style="font-size:13px">You'll see how each note was interpreted, how grid, solar and battery are scheduled hour by hour, and what it costs.</p>
+    </section>
+
+    <section class="card err hidden" id="errBox"><h3 id="errTitle">Request failed</h3><div id="errMsg"></div><pre id="errDetail"></pre></section>
+
+    <div id="results" class="hidden" style="display:flex;flex-direction:column;gap:20px">
+      <div class="kpis">
+        <div class="card kpi"><div class="lbl">Total grid cost</div><div class="val" id="k_cost"></div><div class="sub" id="k_cost_sub"></div></div>
+        <div class="card kpi"><div class="lbl">Saved vs. no battery</div><div class="val" id="k_save"></div><div class="sub" id="k_save_sub"></div></div>
+        <div class="card kpi"><div class="lbl">Grid energy</div><div class="val" id="k_grid"></div><div class="sub" id="k_grid_sub"></div></div>
+        <div class="card kpi"><div class="lbl">Peak grid import</div><div class="val" id="k_peak"></div><div class="sub" id="k_peak_sub"></div></div>
+      </div>
+
+      <div class="card summary"><span>💡</span><span id="summary"></span><span class="meta" id="meta"></span></div>
+
+      <section class="card panel">
+        <div class="panel-h"><h2>How the notes were interpreted</h2><span class="muted">One directive per note, after guardrail validation</span></div>
+        <div class="dirs" id="dirs"></div>
+      </section>
+
+      <section class="card panel">
+        <div class="panel-h"><h2>Energy mix by hour</h2>
+          <div class="legend">
+            <span><i style="background:var(--solar)"></i>Solar used</span>
+            <span><i style="background:var(--dis)"></i>Battery discharge</span>
+            <span><i style="background:var(--grid)"></i>Grid import</span>
+            <span><i style="background:var(--chg)"></i>Grid → battery charge</span>
+            <span><i class="ln" style="background:var(--ink)"></i>Demand</span>
+          </div>
+        </div>
+        <div class="chart-box" id="mixBox"><svg id="mix"></svg><div class="tip" id="mixTip"></div></div>
+      </section>
+
+      <section class="card panel">
+        <div class="panel-h"><h2>Battery state vs. tariff</h2>
+          <div class="legend">
+            <span><i style="background:var(--dis);opacity:.5"></i>Stored energy</span>
+            <span><i class="ln" style="background:var(--tariff)"></i>Tariff</span>
+            <span><i class="ln" style="background:var(--danger)"></i>Floor (min / reserve)</span>
+          </div>
+        </div>
+        <div class="chart-box" id="socBox"><svg id="soc"></svg><div class="tip" id="socTip"></div></div>
+      </section>
+
+      <section class="card panel">
+        <div class="panel-h"><h2>Hourly plan</h2><span class="muted">Rows marked on the left fall inside a directive window</span></div>
+        <div class="tbl-wrap"><table class="plan" id="planTbl"></table></div>
+      </section>
+
+      <section class="card panel">
+        <div class="panel-h"><h2>Raw exchange</h2>
+          <div style="display:flex;gap:6px"><button class="icon-btn" id="copyBtn">Copy</button><button class="icon-btn" id="dlBtn">Download</button></div>
+        </div>
+        <div class="tabs" id="rawTabs">
+          <button class="tab on" data-t="res">Response</button>
+          <button class="tab" data-t="req">Request</button>
+          <button class="tab" data-t="curl">cURL</button>
+        </div>
+        <pre class="code" id="raw"></pre>
+      </section>
+    </div>
+  </main>
+</div>
+<footer>GridWise LLM · BUP CSE Fest 2026 · FastAPI + LLM directive interpreter + PuLP/CBC linear program. Free hosting may sleep; the first request after idle can take up to a minute.</footer>
+
+<div class="modal-bg" id="modalBg">
+  <div class="card modal">
+    <div class="panel-h" style="margin:0"><h2>Paste a scenario</h2><span class="muted">A request body, or a public-sample case with an <code>input</code> field</span></div>
+    <textarea class="input" id="importText" spellcheck="false"></textarea>
+    <div class="row"><span class="muted" id="importErr" style="color:var(--danger);margin-right:auto;font-size:12.5px"></span><button class="btn btn-ghost" id="importCancel">Cancel</button><button class="btn btn-primary" style="flex:none" id="importOk">Load scenario</button></div>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+(() => {
+  "use strict";
+  const $ = (id) => document.getElementById(id);
+  const params = new URLSearchParams(location.search);
+  // Same-origin by default; ?api=https://host lets the page drive another deployment.
+  const API = (params.get("api") || "").replace(/\/$/, "");
+  const MAX_NOTES = 3;
+
+  const TYPES = {
+    solar_reduction:          { label: "Solar reduction",   icon: "☀", c: "var(--solar)" },
+    minimum_battery_reserve:  { label: "Battery reserve",   icon: "🔋", c: "var(--dis)" },
+    no_charge_window:         { label: "No charging",       icon: "⊘", c: "var(--chg)" },
+    no_discharge_window:      { label: "No discharging",    icon: "⊗", c: "var(--tariff)" },
+    max_grid_window:          { label: "Grid import cap",   icon: "⚡", c: "var(--grid)" },
+    no_op:                    { label: "No-op · no effect", icon: "–", c: "var(--ink-3)" },
+  };
+  const IDEAS = [
+    ["Feeder cap", "The feeder is limited to 150 kWh of grid import per hour from 6 PM until 9 PM."],
+    ["Panel cleaning", "Panels will be washed from 11 AM to 1 PM, so expect only about 30% of forecast solar."],
+    ["Evening reserve", "Hold at least 100 kWh in the battery between 7 PM and 10 PM for backup lighting."],
+    ["Charger offline", "The charger is offline for maintenance between 1 AM and 4 AM."],
+    ["Distractor", "The cafeteria menu changes next Monday."],
+  ];
+
+  let samples = [];
+  let state = null;          // current request body
+  let activePreset = null;
+  let last = null;           // { req, res, ms }
+  let rawTab = "res";
+  let running = false;
+
+  // ---------- utils ----------
+  const fmt = (n, d = 0) => Number(n).toLocaleString("en-US", { minimumFractionDigits: d, maximumFractionDigits: d });
+  const fmt1 = (n) => fmt(n, Math.abs(n - Math.round(n)) < 0.005 ? 0 : 1);
+  const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const hourLabel = (h) => { h = ((h % 24) + 24) % 24; if (h === 0) return "12 AM"; if (h === 12) return "12 PM"; return h < 12 ? h + " AM" : (h - 12) + " PM"; };
+  const clone = (o) => JSON.parse(JSON.stringify(o));
+  const store = {
+    get(k, d) { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch { return d; } },
+    set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} },
+  };
+  function toast(msg) { const t = $("toast"); t.textContent = msg; t.classList.add("on"); clearTimeout(toast._t); toast._t = setTimeout(() => t.classList.remove("on"), 1800); }
+  function ranges(hours) {
+    const hs = [...new Set(hours)].sort((a, b) => a - b); const out = [];
+    for (const h of hs) { const r = out[out.length - 1]; if (r && r[1] === h) r[1] = h + 1; else out.push([h, h + 1]); }
+    return out.map(([a, b]) => `${hourLabel(a)} – ${hourLabel(b)}`).join(", ");
+  }
+  const cssVar = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+
+  // ---------- theme ----------
+  const savedTheme = store.get("gw.theme", null);
+  if (savedTheme) document.documentElement.dataset.theme = savedTheme;
+  $("themeBtn").onclick = () => {
+    const dark = matchMedia("(prefers-color-scheme: dark)").matches;
+    const cur = document.documentElement.dataset.theme || (dark ? "dark" : "light");
+    const next = cur === "dark" ? "light" : "dark";
+    document.documentElement.dataset.theme = next; store.set("gw.theme", next);
+    drawSpark(); if (last) { drawMix(); drawSoc(); }
+  };
+
+  // ---------- health ----------
+  async function checkHealth() {
+    const pill = $("health"), dot = pill.querySelector(".dot"), txt = pill.querySelector("span:last-child");
+    dot.className = "dot wait"; txt.textContent = "Checking API…";
+    const slow = setTimeout(() => { txt.textContent = "Waking server (free tier)…"; }, 4000);
+    const t0 = performance.now();
+    try {
+      const r = await fetch(API + "/health", { cache: "no-store", signal: AbortSignal.timeout(90000) });
+      const j = await r.json();
+      if (!r.ok || j.status !== "ok") throw new Error();
+      dot.className = "dot ok"; txt.textContent = `API online · ${Math.round(performance.now() - t0)} ms`;
+    } catch { dot.className = "dot bad"; txt.textContent = "API unreachable"; }
+    finally { clearTimeout(slow); }
+  }
+  $("health").onclick = checkHealth; $("health").style.cursor = "pointer";
+
+  // ---------- scenario form ----------
+  function loadScenario(body, presetId) {
+    state = clone(body);
+    state.hours.sort((a, b) => a.hour - b.hour);
+    activePreset = presetId || null;
+    $("scenarioId").value = state.scenario_id;
+    const b = state.battery;
+    $("b_cap").value = b.capacity_kwh; $("b_init").value = b.initial_energy_kwh; $("b_min").value = b.minimum_energy_kwh;
+    $("b_chg").value = b.max_charge_kwh_per_hour; $("b_dis").value = b.max_discharge_kwh_per_hour;
+    renderPresets(); renderNotes(); renderHours(); drawSpark();
+  }
+  function renderPresets() {
+    $("presets").innerHTML = samples.map((s) => `<button class="chip ${s.id === activePreset ? "on" : ""}" data-id="${esc(s.id)}">${esc(s.id.replace("SAMPLE-", "#"))}</button>`).join("");
+    const s = samples.find((x) => x.id === activePreset);
+    $("presetLabel").textContent = s ? s.label : (state ? "Custom scenario" : "");
+  }
+  $("presets").onclick = (e) => { const b = e.target.closest(".chip"); if (!b) return; const s = samples.find((x) => x.id === b.dataset.id); if (s) loadScenario(s.input, s.id); };
+
+  function renderNotes() {
+    const notes = state.operator_notes;
+    $("notes").innerHTML = notes.map((n, i) => `
+      <div class="note"><span class="note-idx">#${i}</span>
+        <textarea class="input" rows="2" data-i="${i}" placeholder="e.g. Grid import must stay under 160 kWh from 6 PM to 9 PM">${esc(n)}</textarea>
+        ${notes.length > 1 ? `<button class="x" data-del="${i}" title="Remove note" aria-label="Remove note">×</button>` : ""}
+      </div>`).join("");
+    $("noteCount").textContent = `${notes.length}/${MAX_NOTES}`;
+    $("addNote").disabled = notes.length >= MAX_NOTES;
+    $("notes").querySelectorAll("textarea").forEach(grow);
+    $("ideas").innerHTML = notes.length < MAX_NOTES ? IDEAS.map(([k, v], i) => `<button class="idea" data-idea="${i}" title="${esc(v)}">+ ${esc(k)}</button>`).join("") : "";
+  }
+  function grow(t) { t.style.height = "auto"; t.style.height = t.scrollHeight + 2 + "px"; }
+  $("notes").addEventListener("input", (e) => { const i = e.target.dataset.i; if (i !== undefined) { state.operator_notes[+i] = e.target.value; grow(e.target); markCustom(); } });
+  $("notes").addEventListener("click", (e) => { const d = e.target.dataset.del; if (d !== undefined) { state.operator_notes.splice(+d, 1); markCustom(); renderNotes(); } });
+  $("addNote").onclick = () => { if (state.operator_notes.length < MAX_NOTES) { state.operator_notes.push(""); markCustom(); renderNotes(); $("notes").querySelector(`textarea[data-i="${state.operator_notes.length - 1}"]`).focus(); } };
+  $("ideas").onclick = (e) => {
+    const i = e.target.dataset.idea; if (i === undefined) return;
+    const empty = state.operator_notes.findIndex((n) => !n.trim());
+    if (empty >= 0) state.operator_notes[empty] = IDEAS[+i][1];
+    else if (state.operator_notes.length < MAX_NOTES) state.operator_notes.push(IDEAS[+i][1]);
+    markCustom(); renderNotes();
+  };
+  function markCustom() { if (activePreset) { activePreset = null; renderPresets(); } }
+
+  const bmap = { b_cap: "capacity_kwh", b_init: "initial_energy_kwh", b_min: "minimum_energy_kwh", b_chg: "max_charge_kwh_per_hour", b_dis: "max_discharge_kwh_per_hour" };
+  for (const [id, key] of Object.entries(bmap)) $(id).addEventListener("input", (e) => { state.battery[key] = e.target.value === "" ? "" : Number(e.target.value); markCustom(); });
+  $("scenarioId").addEventListener("input", (e) => { state.scenario_id = e.target.value; });
+
+  function renderHours() {
+    $("hoursBody").innerHTML = state.hours.map((h, i) => `<tr><td>${String(h.hour).padStart(2, "0")}</td>
+      <td><input type="number" step="any" min="0" data-r="${i}" data-k="demand_kwh" value="${h.demand_kwh}"></td>
+      <td><input type="number" step="any" min="0" data-r="${i}" data-k="solar_kwh" value="${h.solar_kwh}"></td>
+      <td><input type="number" step="any" min="0" data-r="${i}" data-k="tariff_bdt_per_kwh" value="${h.tariff_bdt_per_kwh}"></td></tr>`).join("");
+  }
+  $("hoursBody").addEventListener("input", (e) => { const t = e.target; if (t.dataset.r === undefined) return; state.hours[+t.dataset.r][t.dataset.k] = t.value === "" ? "" : Number(t.value); markCustom(); drawSpark(); });
+  $("toggleHours").onclick = () => { const box = $("hoursBox"); box.classList.toggle("hidden"); $("toggleHours").textContent = box.classList.contains("hidden") ? "Edit hours" : "Hide table"; };
+
+  function drawSpark() {
+    if (!state) return;
+    const W = 360, H = 74, n = 24, bw = W / n;
+    const hs = state.hours, maxE = Math.max(1, ...hs.map((h) => Math.max(+h.demand_kwh || 0, +h.solar_kwh || 0)));
+    const maxT = Math.max(1, ...hs.map((h) => +h.tariff_bdt_per_kwh || 0));
+    let s = "";
+    hs.forEach((h, i) => {
+      const dh = (+h.demand_kwh || 0) / maxE * (H - 6), sh = (+h.solar_kwh || 0) / maxE * (H - 6);
+      s += `<rect x="${i * bw + 1}" y="${H - dh}" width="${bw - 2}" height="${dh}" rx="1.5" fill="${cssVar("--ink-3")}" opacity=".28"/>`;
+      s += `<rect x="${i * bw + 1}" y="${H - sh}" width="${bw - 2}" height="${sh}" rx="1.5" fill="${cssVar("--solar")}" opacity=".9"/>`;
+    });
+    const pts = hs.map((h, i) => `${i * bw + bw / 2},${H - 3 - (+h.tariff_bdt_per_kwh || 0) / maxT * (H - 10)}`).join(" ");
+    s += `<polyline points="${pts}" fill="none" stroke="${cssVar("--tariff")}" stroke-width="2" vector-effect="non-scaling-stroke" stroke-linejoin="round"/>`;
+    $("spark").innerHTML = s;
+  }
+
+  // ---------- import modal ----------
+  $("importBtn").onclick = () => { $("importText").value = JSON.stringify(currentBody(), null, 2); $("importErr").textContent = ""; $("modalBg").classList.add("on"); $("importText").focus(); };
+  $("importCancel").onclick = () => $("modalBg").classList.remove("on");
+  $("modalBg").onclick = (e) => { if (e.target === $("modalBg")) $("modalBg").classList.remove("on"); };
+  $("importOk").onclick = () => {
+    try {
+      let j = JSON.parse($("importText").value);
+      if (j.input) j = j.input;
+      if (!Array.isArray(j.operator_notes) || !Array.isArray(j.hours) || !j.battery) throw new Error("Expected scenario_id, operator_notes, hours and battery.");
+      if (!j.scenario_id) j.scenario_id = "CUSTOM-01";
+      loadScenario(j, samples.find((s) => s.id === j.scenario_id) ? null : null);
+      $("modalBg").classList.remove("on"); toast("Scenario loaded");
+    } catch (err) { $("importErr").textContent = err.message; }
+  };
+
+  // ---------- history ----------
+  function renderHistory() {
+    const h = store.get("gw.history", []);
+    $("histSec").classList.toggle("hidden", !h.length);
+    $("history").innerHTML = h.map((r, i) => `<button class="hist" data-h="${i}"><span>${esc(r.req.scenario_id)} · ${r.req.operator_notes.length} note${r.req.operator_notes.length > 1 ? "s" : ""}</span><span>৳${fmt(r.res.total_cost_bdt)}</span></button>`).join("");
+  }
+  $("history").onclick = (e) => { const b = e.target.closest(".hist"); if (!b) return; const r = store.get("gw.history", [])[+b.dataset.h]; if (r) { loadScenario(r.req, samples.some((s) => s.id === r.req.scenario_id) ? r.req.scenario_id : null); last = r; showResults(); } };
+  $("clearHist").onclick = () => { store.set("gw.history", []); renderHistory(); };
+  function pushHistory(r) { const h = store.get("gw.history", []); h.unshift(r); store.set("gw.history", h.slice(0, 6)); renderHistory(); }
+
+  // ---------- run ----------
+  function currentBody() {
+    return {
+      scenario_id: (state.scenario_id || "").trim() || "CUSTOM-01",
+      operator_notes: state.operator_notes.map((n) => n.trim()).filter(Boolean),
+      hours: state.hours.map((h) => ({ hour: h.hour, demand_kwh: +h.demand_kwh, solar_kwh: +h.solar_kwh, tariff_bdt_per_kwh: +h.tariff_bdt_per_kwh })),
+      battery: Object.fromEntries(Object.entries(state.battery).map(([k, v]) => [k, +v])),
+    };
+  }
+  function setStep(active, failAt) {
+    document.querySelectorAll(".step").forEach((el) => {
+      const s = +el.dataset.s; el.className = "step";
+      if (failAt !== undefined && s === failAt) el.classList.add("fail");
+      else if (s < active) el.classList.add("done");
+      else if (s === active) el.classList.add("active");
+    });
+  }
+  async function run() {
+    if (running) return;
+    const body = currentBody();
+    if (!body.operator_notes.length) { toast("Add at least one operator note"); return; }
+    running = true; $("runBtn").disabled = true;
+    $("runLabel").innerHTML = `<span class="spinner"></span> Optimizing…`;
+    $("errBox").classList.add("hidden");
+    if (innerWidth < 980) document.querySelector(".pipe").scrollIntoView({ behavior: "smooth" });
+    const t0 = performance.now();
+    // The API is a single call, so stage progress is approximate: most of the time is the LLM.
+    let stage = 0; setStep(0);
+    const tick = setInterval(() => {
+      const s = (performance.now() - t0) / 1000;
+      $("pipeFoot").textContent = s > 8 ? `${s.toFixed(1)} s · the server may be waking from sleep, hang tight…` : `${s.toFixed(1)} s elapsed`;
+    }, 100);
+    try {
+      const r = await fetch(API + "/optimize-energy", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body), signal: AbortSignal.timeout(120000) });
+      const text = await r.text(); let j; try { j = JSON.parse(text); } catch { j = { detail: text }; }
+      if (!r.ok) { const e = new Error(`HTTP ${r.status}`); e.detail = j.detail ?? j; e.status = r.status; throw e; }
+      const ms = performance.now() - t0;
+      for (stage = 1; stage <= 5; stage++) { setStep(stage); await new Promise((res) => setTimeout(res, 110)); }
+      last = { req: body, res: j, ms, at: Date.now() };
+      pushHistory(last); showResults();
+      $("pipeFoot").textContent = `Completed in ${(ms / 1000).toFixed(2)} s · replay check passed · totals recomputed from the plan`;
+    } catch (err) {
+      setStep(stage, err.status === 422 ? 1 : stage);
+      showError(err);
+      $("pipeFoot").textContent = "Pipeline stopped.";
+    } finally {
+      clearInterval(tick); running = false; $("runBtn").disabled = false; $("runLabel").textContent = "Optimize schedule";
+    }
+  }
+  $("runBtn").onclick = run;
+  document.addEventListener("keydown", (e) => { if ((e.ctrlKey || e.metaKey) && e.key === "Enter") { e.preventDefault(); run(); } if (e.key === "Escape") $("modalBg").classList.remove("on"); });
+
+  function showError(err) {
+    $("errBox").classList.remove("hidden"); $("results").classList.add("hidden"); $("emptyState").classList.add("hidden");
+    if (err.name === "TimeoutError" || err.name === "AbortError") { $("errTitle").textContent = "Timed out"; $("errMsg").textContent = "The API did not answer in time. If it was asleep, try again now that it is awake."; $("errDetail").textContent = ""; return; }
+    if (err.status === 422) {
+      $("errTitle").textContent = "The scenario didn't pass validation";
+      const list = Array.isArray(err.detail) ? err.detail.map((d) => `• ${(d.loc || []).slice(1).join(" → ")}: ${d.msg}`).join("\n") : JSON.stringify(err.detail, null, 2);
+      $("errMsg").textContent = "Fix the fields below and run again."; $("errDetail").textContent = list; return;
+    }
+    if (err.status) { $("errTitle").textContent = `Server error (${err.status})`; $("errMsg").textContent = "The optimizer or replay check rejected this scenario. Constraints may be infeasible (for example a reserve above capacity, or a grid cap below demand)."; $("errDetail").textContent = typeof err.detail === "string" ? err.detail : JSON.stringify(err.detail, null, 2); return; }
+    $("errTitle").textContent = "Couldn't reach the API"; $("errMsg").textContent = "Check your connection or the health indicator at the top."; $("errDetail").textContent = String(err.message || err);
+  }
+
+  // ---------- results ----------
+  function analysis() {
+    const { req, res } = last;
+    const hours = [...req.hours].sort((a, b) => a.hour - b.hour);
+    const plan = [...res.hourly_plan].sort((a, b) => a.hour - b.hour);
+    const dirs = res.directive_interpretation.filter((d) => d.applies && d.structured_adjustment);
+    const factor = Array(24).fill(1), floor = Array(24).fill(req.battery.minimum_energy_kwh), constrained = Array(24).fill(false);
+    for (const d of dirs) {
+      const a = d.structured_adjustment;
+      for (const h of a.hours || []) {
+        constrained[h] = true;
+        if (d.directive_type === "solar_reduction") factor[h] *= a.factor;
+        if (d.directive_type === "minimum_battery_reserve") floor[h] = Math.max(floor[h], a.minimum_energy_kwh);
+      }
+    }
+    // Baseline: same effective solar, no battery, so grid covers the rest of demand.
+    let baseCost = 0, baseGrid = 0;
+    hours.forEach((h, i) => { const g = Math.max(0, h.demand_kwh - h.solar_kwh * factor[i]); baseGrid += g; baseCost += g * h.tariff_bdt_per_kwh; });
+    return { hours, plan, factor, floor, constrained, baseCost, baseGrid };
+  }
+
+  function showResults() {
+    const { req, res, ms } = last, A = analysis();
+    $("emptyState").classList.add("hidden"); $("errBox").classList.add("hidden");
+    $("results").classList.remove("hidden");
+    const save = A.baseCost - res.total_cost_bdt;
+    $("k_cost").innerHTML = `৳${fmt(res.total_cost_bdt)}`;
+    $("k_cost_sub").textContent = `avg ৳${fmt(res.total_cost_bdt / Math.max(res.total_grid_kwh, 1), 2)} per grid kWh`;
+    $("k_save").innerHTML = `৳${fmt(Math.max(save, 0))}<small>${A.baseCost > 0 ? fmt(save / A.baseCost * 100, 1) + "%" : ""}</small>`;
+    $("k_save_sub").textContent = `baseline ৳${fmt(A.baseCost)} with solar only`;
+    $("k_save_sub").className = "sub" + (save > 0.5 ? " good" : "");
+    $("k_grid").innerHTML = `${fmt1(res.total_grid_kwh)}<small>kWh</small>`;
+    const solarUsed = A.plan.reduce((s, r) => s + r.solar_used_kwh, 0), demand = A.hours.reduce((s, h) => s + h.demand_kwh, 0);
+    $("k_grid_sub").textContent = `solar covered ${fmt(solarUsed / demand * 100, 0)}% of ${fmt(demand)} kWh demand`;
+    const peakRow = A.plan.reduce((m, r) => (r.grid_kwh > m.grid_kwh ? r : m), A.plan[0]);
+    $("k_peak").innerHTML = `${fmt1(res.peak_grid_kwh)}<small>kWh</small>`;
+    $("k_peak_sub").textContent = `at ${hourLabel(peakRow.hour)}`;
+    $("summary").textContent = res.plan_summary;
+    $("meta").textContent = `${res.scenario_id} · ${(ms / 1000).toFixed(2)} s`;
+    renderDirs(); drawMix(); drawSoc(); renderTable(); renderRaw();
+  }
+
+  function renderDirs() {
+    const { req, res } = last;
+    $("dirs").innerHTML = res.directive_interpretation.map((d) => {
+      const t = TYPES[d.directive_type] || TYPES.no_op, a = d.structured_adjustment || {}, hrs = new Set(a.hours || []);
+      const ps = [];
+      if (a.hours && a.hours.length) ps.push(ranges(a.hours));
+      if (a.factor !== undefined) ps.push(`${fmt(a.factor * 100, 0)}% of forecast remains`);
+      if (a.minimum_energy_kwh !== undefined) ps.push(`≥ ${fmt1(a.minimum_energy_kwh)} kWh stored`);
+      if (a.max_grid_kwh !== undefined) ps.push(`≤ ${fmt1(a.max_grid_kwh)} kWh/h grid`);
+      return `<div class="dir ${d.applies ? "" : "noop"}" style="--c:${t.c}">
+        <div class="dir-q"><span class="ni">#${d.note_index}</span>“${esc(req.operator_notes[d.note_index] ?? "")}”</div>
+        <div><span class="badge">${t.icon} ${esc(t.label)}</span></div>
+        ${d.applies ? `<div class="params">${ps.map((p) => `<span class="param">${esc(p)}</span>`).join("")}</div>
+        <div><div class="strip">${Array.from({ length: 24 }, (_, h) => `<span class="${hrs.has(h) ? "on" : ""}" title="${hourLabel(h)}"></span>`).join("")}</div>
+        <div class="strip-axis"><span>0</span><span>6</span><span>12</span><span>18</span><span>23</span></div></div>` : ""}
+        <div class="dir-exp">${esc(d.explanation || (d.applies ? "" : "Ignored: no effect on today's schedule."))}</div>
+      </div>`;
+    }).join("");
+  }
+
+  function svgSize(box) { return Math.max(320, box.clientWidth); }
+
+  function drawMix() {
+    const A = analysis(), box = $("mixBox"), W = svgSize(box), H = 300;
+    const m = { l: 44, r: 12, t: 12, b: 28 }, iw = W - m.l - m.r, ih = H - m.t - m.b, n = 24, bw = iw / n;
+    const rows = A.plan.map((r, i) => {
+      const h = A.hours[i], chg = r.battery_action === "charge" ? r.battery_kwh : 0, dis = r.battery_action === "discharge" ? r.battery_kwh : 0;
+      return { h: r.hour, solar: r.solar_used_kwh, dis, chg, gridLoad: Math.max(0, r.grid_kwh - chg), demand: h.demand_kwh, grid: r.grid_kwh, tariff: h.tariff_bdt_per_kwh, soc: r.battery_energy_after_kwh };
+    });
+    const top = Math.max(...rows.map((r) => Math.max(r.solar + r.dis + r.gridLoad + r.chg, r.demand)));
+    const ymax = niceMax(top), y = (v) => m.t + ih - v / ymax * ih;
+    let s = "";
+    // directive windows
+    const dirs = last.res.directive_interpretation.filter((d) => d.applies && d.structured_adjustment);
+    A.constrained.forEach((c, i) => { if (c) s += `<rect x="${m.l + i * bw}" y="${m.t}" width="${bw}" height="${ih}" fill="${cssVar("--accent")}" opacity=".1"/>`; });
+    for (const d of dirs) if (d.directive_type === "max_grid_window") {
+      const a = d.structured_adjustment, hs = a.hours;
+      for (const h of hs) s += `<line x1="${m.l + h * bw}" x2="${m.l + (h + 1) * bw}" y1="${y(a.max_grid_kwh)}" y2="${y(a.max_grid_kwh)}" stroke="${cssVar("--grid")}" stroke-width="2" stroke-dasharray="4 3"/>`;
+    }
+    s += axes(W, H, m, ymax, "kWh");
+    rows.forEach((r, i) => {
+      const x = m.l + i * bw + bw * 0.14, w = bw * 0.72; let acc = 0;
+      for (const [v, c] of [[r.solar, "--solar"], [r.dis, "--dis"], [r.gridLoad, "--grid"], [r.chg, "--chg"]]) {
+        if (v <= 0.001) continue;
+        s += `<rect x="${x}" y="${y(acc + v)}" width="${w}" height="${Math.max(0, y(acc) - y(acc + v))}" fill="${cssVar(c)}" ${c === "--chg" ? 'opacity=".75"' : ""}/>`; acc += v;
+      }
+    });
+    const dpts = rows.map((r, i) => `${m.l + i * bw},${y(r.demand)} ${m.l + (i + 1) * bw},${y(r.demand)}`).join(" ");
+    s += `<polyline points="${dpts}" fill="none" stroke="${cssVar("--ink")}" stroke-width="1.6" stroke-linejoin="round"/>`;
+    s += xLabels(m, bw, H);
+    s += `<rect id="mixHover" x="0" y="${m.t}" width="${bw}" height="${ih}" fill="${cssVar("--ink")}" opacity="0" pointer-events="none"/>`;
+    const svg = $("mix"); svg.setAttribute("viewBox", `0 0 ${W} ${H}`); svg.setAttribute("height", H); svg.innerHTML = s;
+    hover(box, svg, m, bw, (i) => {
+      const r = rows[i];
+      return `<b>${hourLabel(r.h)} – ${hourLabel(r.h + 1)}</b>${A.constrained[i] ? ' <span style="opacity:.7">· directive</span>' : ""}
+        <div class="r"><span>Demand</span><span>${fmt1(r.demand)} kWh</span></div>
+        <div class="r"><span><i style="background:${cssVar("--solar")}"></i>Solar used</span><span>${fmt1(r.solar)}</span></div>
+        <div class="r"><span><i style="background:${cssVar("--dis")}"></i>Battery out</span><span>${fmt1(r.dis)}</span></div>
+        <div class="r"><span><i style="background:${cssVar("--grid")}"></i>Grid import</span><span>${fmt1(r.grid)}</span></div>
+        ${r.chg ? `<div class="r"><span><i style="background:${cssVar("--chg")}"></i>of which charging</span><span>${fmt1(r.chg)}</span></div>` : ""}
+        <div class="r"><span>Tariff</span><span>৳${fmt1(r.tariff)}/kWh</span></div>
+        <div class="r"><span>Hour cost</span><span>৳${fmt(r.grid * r.tariff)}</span></div>`;
+    }, "mixHover", "mixTip");
+  }
+
+  function drawSoc() {
+    const A = analysis(), b = last.req.battery, box = $("socBox"), W = svgSize(box), H = 230;
+    const m = { l: 44, r: 44, t: 12, b: 28 }, iw = W - m.l - m.r, ih = H - m.t - m.b, bw = iw / 24;
+    const ymax = niceMax(b.capacity_kwh), y = (v) => m.t + ih - v / ymax * ih;
+    const tmax = niceMax(Math.max(...A.hours.map((h) => h.tariff_bdt_per_kwh))), yt = (v) => m.t + ih - v / tmax * ih;
+    let s = axes(W, H, m, ymax, "kWh");
+    s += `<line x1="${m.l}" x2="${W - m.r}" y1="${y(b.capacity_kwh)}" y2="${y(b.capacity_kwh)}" stroke="${cssVar("--ink-3")}" stroke-dasharray="2 4"/>`;
+    s += `<text x="${W - m.r - 4}" y="${y(b.capacity_kwh) - 4}" text-anchor="end" font-size="10.5" fill="${cssVar("--ink-3")}">capacity ${fmt1(b.capacity_kwh)}</text>`;
+    for (let k = 0; k <= 4; k++) { const v = tmax * k / 4; s += `<text x="${W - m.r + 6}" y="${yt(v) + 3.5}" font-size="10.5" fill="${cssVar("--tariff")}">৳${fmt(v)}</text>`; }
+    // SOC: start-of-day point at x=0, then energy after each hour at its right edge.
+    const pts = [[m.l, y(b.initial_energy_kwh)], ...A.plan.map((r, i) => [m.l + (i + 1) * bw, y(r.battery_energy_after_kwh)])];
+    s += `<path d="M${pts.map((p) => p.join(",")).join(" L")} L${W - m.r},${m.t + ih} L${m.l},${m.t + ih} Z" fill="${cssVar("--dis")}" opacity=".22"/>`;
+    s += `<polyline points="${pts.map((p) => p.join(",")).join(" ")}" fill="none" stroke="${cssVar("--dis")}" stroke-width="2.2" stroke-linejoin="round"/>`;
+    s += `<polyline points="${A.floor.map((f, i) => `${m.l + i * bw},${y(f)} ${m.l + (i + 1) * bw},${y(f)}`).join(" ")}" fill="none" stroke="${cssVar("--danger")}" stroke-width="1.5" stroke-dasharray="5 3"/>`;
+    s += `<polyline points="${A.hours.map((h, i) => `${m.l + i * bw},${yt(h.tariff_bdt_per_kwh)} ${m.l + (i + 1) * bw},${yt(h.tariff_bdt_per_kwh)}`).join(" ")}" fill="none" stroke="${cssVar("--tariff")}" stroke-width="1.8"/>`;
+    s += xLabels(m, bw, H);
+    s += `<rect id="socHover" x="0" y="${m.t}" width="${bw}" height="${ih}" fill="${cssVar("--ink")}" opacity="0" pointer-events="none"/>`;
+    const svg = $("soc"); svg.setAttribute("viewBox", `0 0 ${W} ${H}`); svg.setAttribute("height", H); svg.innerHTML = s;
+    hover(box, svg, m, bw, (i) => {
+      const r = A.plan[i], h = A.hours[i];
+      return `<b>${hourLabel(r.hour)} – ${hourLabel(r.hour + 1)}</b>
+        <div class="r"><span>Action</span><span>${r.battery_action}${r.battery_kwh ? " " + fmt1(r.battery_kwh) + " kWh" : ""}</span></div>
+        <div class="r"><span>Stored after</span><span>${fmt1(r.battery_energy_after_kwh)} kWh</span></div>
+        <div class="r"><span>Floor</span><span>${fmt1(A.floor[i])} kWh</span></div>
+        <div class="r"><span>Tariff</span><span>৳${fmt1(h.tariff_bdt_per_kwh)}/kWh</span></div>`;
+    }, "socHover", "socTip");
+  }
+
+  function niceMax(v) { if (v <= 0) return 1; const p = Math.pow(10, Math.floor(Math.log10(v))); for (const k of [1, 1.2, 1.5, 2, 2.5, 3, 4, 5, 6, 8, 10]) if (k * p >= v * 1.04) return k * p; return 10 * p; }
+  function axes(W, H, m, ymax, unit) {
+    let s = ""; const ih = H - m.t - m.b;
+    for (let k = 0; k <= 4; k++) {
+      const v = ymax * k / 4, yy = m.t + ih - ih * k / 4;
+      s += `<line x1="${m.l}" x2="${W - m.r}" y1="${yy}" y2="${yy}" stroke="${cssVar("--line")}"/>`;
+      s += `<text x="${m.l - 8}" y="${yy + 3.5}" text-anchor="end" font-size="10.5" fill="${cssVar("--ink-3")}">${fmt(v)}</text>`;
+    }
+    return s;
+  }
+  function xLabels(m, bw, H) { let s = ""; for (let h = 0; h < 24; h += 3) s += `<text x="${m.l + h * bw + bw / 2}" y="${H - 8}" text-anchor="middle" font-size="10.5" fill="${cssVar("--ink-3")}">${hourLabel(h).replace(" ", "")}</text>`; return s; }
+  function hover(box, svg, m, bw, html, hoverId, tipId) {
+    const tip = $(tipId);
+    svg.onmousemove = (e) => {
+      const rect = svg.getBoundingClientRect(), scale = svg.viewBox.baseVal.width / rect.width;
+      const x = (e.clientX - rect.left) * scale, i = Math.floor((x - m.l) / bw);
+      if (i < 0 || i > 23) { tip.style.opacity = 0; $(hoverId).setAttribute("opacity", 0); return; }
+      const hr = $(hoverId); hr.setAttribute("x", m.l + i * bw); hr.setAttribute("opacity", .06);
+      tip.innerHTML = html(i); tip.style.opacity = 1;
+      const bx = box.getBoundingClientRect(), tw = tip.offsetWidth;
+      let left = e.clientX - bx.left + 14; if (left + tw > bx.width) left = e.clientX - bx.left - tw - 14;
+      tip.style.left = Math.max(0, left) + "px"; tip.style.top = Math.max(0, e.clientY - bx.top - 20) + "px";
+    };
+    svg.onmouseleave = () => { tip.style.opacity = 0; $(hoverId).setAttribute("opacity", 0); };
+  }
+
+  function renderTable() {
+    const A = analysis();
+    let tg = 0, tc = 0, ts = 0;
+    const body = A.plan.map((r, i) => {
+      const h = A.hours[i], cost = r.grid_kwh * h.tariff_bdt_per_kwh; tg += r.grid_kwh; tc += cost; ts += r.solar_used_kwh;
+      return `<tr class="${A.constrained[i] ? "constrained" : ""}"><td>${String(r.hour).padStart(2, "0")}:00</td>
+        <td>${fmt1(h.demand_kwh)}</td><td>${fmt1(h.solar_kwh)}${A.factor[i] < 1 ? ` <span class="muted">×${fmt(A.factor[i], 2)}</span>` : ""}</td>
+        <td>${fmt1(r.solar_used_kwh)}</td><td>${fmt1(r.grid_kwh)}</td>
+        <td><span class="act ${r.battery_action}">${r.battery_action}</span></td><td>${r.battery_kwh ? fmt1(r.battery_kwh) : "–"}</td>
+        <td>${fmt1(r.battery_energy_after_kwh)}</td><td>${fmt1(h.tariff_bdt_per_kwh)}</td><td>${fmt(cost)}</td></tr>`;
+    }).join("");
+    $("planTbl").innerHTML = `<thead><tr><th>Hour</th><th>Demand</th><th>Solar fcst</th><th>Solar used</th><th>Grid kWh</th><th style="text-align:center">Battery</th><th>kWh</th><th>Stored after</th><th>Tariff ৳</th><th>Cost ৳</th></tr></thead>
+      <tbody>${body}</tbody><tfoot><tr><td>Total</td><td></td><td></td><td>${fmt1(ts)}</td><td>${fmt1(tg)}</td><td></td><td></td><td></td><td></td><td>${fmt(tc)}</td></tr></tfoot>`;
+  }
+
+  function curlFor(req) {
+    const base = API || location.origin;
+    return `curl -X POST ${base}/optimize-energy \\\n  -H "Content-Type: application/json" \\\n  -d '${JSON.stringify(req).replace(/'/g, "'\\''")}'`;
+  }
+  function rawText() { if (!last) return ""; return rawTab === "res" ? JSON.stringify(last.res, null, 2) : rawTab === "req" ? JSON.stringify(last.req, null, 2) : curlFor(last.req); }
+  function renderRaw() { $("raw").textContent = rawText(); document.querySelectorAll("#rawTabs .tab").forEach((t) => t.classList.toggle("on", t.dataset.t === rawTab)); }
+  $("rawTabs").onclick = (e) => { const t = e.target.dataset.t; if (t) { rawTab = t; renderRaw(); } };
+  $("copyBtn").onclick = async () => { try { await navigator.clipboard.writeText(rawText()); toast("Copied"); } catch { toast("Copy failed"); } };
+  $("dlBtn").onclick = () => {
+    const ext = rawTab === "curl" ? "sh" : "json", name = `${last.req.scenario_id}-${rawTab === "res" ? "response" : rawTab === "req" ? "request" : "curl"}.${ext}`;
+    const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([rawText()], { type: "text/plain" })); a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  };
+
+  let rz; addEventListener("resize", () => { clearTimeout(rz); rz = setTimeout(() => { if (last && !$("results").classList.contains("hidden")) { drawMix(); drawSoc(); } }, 120); });
+
+  // ---------- boot ----------
+  checkHealth(); renderHistory();
+  fetch((API || ".") + "/static/samples.json").then((r) => r.json()).then((s) => { samples = s; loadScenario(s[0].input, s[0].id); })
+    .catch(() => { toast("Couldn't load samples"); });
+})();
+</script>
+</body>
+</html>

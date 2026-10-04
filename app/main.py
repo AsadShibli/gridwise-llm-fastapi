@@ -1,8 +1,11 @@
 """FastAPI entrypoint: /health and the full optimize-energy pipeline."""
 
 import logging
+from pathlib import Path
 
 from fastapi import FastAPI
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 
 from app.guardrails import validate_all
 from app.llm_interpreter import interpret_notes
@@ -13,6 +16,16 @@ from app.schemas import OptimizeRequest, OptimizeResponse
 logging.basicConfig(level=logging.INFO)
 
 app = FastAPI(title="GridWise LLM")
+
+# Browser console at "/" (judge routes below are unchanged).
+STATIC_DIR = Path(__file__).parent / "static"
+app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+
+
+@app.get("/", include_in_schema=False)
+def console() -> FileResponse:
+    """Serve the single-page GridWise console."""
+    return FileResponse(STATIC_DIR / "index.html")
 
 
 @app.get("/health")
