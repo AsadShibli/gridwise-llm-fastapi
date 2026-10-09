@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>GridWise LLM</title>
+  <meta name="description" content="Plain-English operator notes in, cost-optimal 24-hour battery schedule out. LLM + guardrails + linear programming.">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%230f766e'/><path d='M18 4 8 18h7l-2 10 11-15h-7z' fill='%23fde68a'/></svg>">
+  <link rel="preconnect" href="https://gridwise-llm-api.vercel.app">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="top">
+    <div class="top-in">
+      <div class="brand">
+        <span class="brand-mark"><svg viewBox="0 0 32 32" width="18" height="18"><path d="M18 4 8 18h7l-2 10 11-15h-7z" fill="#fde68a"/></svg></span>
+        GridWise <span class="brand-sub">LLM</span>
+      </div>
+      <span class="spacer"></span>
+      <span class="pill" id="apiStatus" title="Live API status"><span class="dot"></span><span>Connecting…</span></span>
+      <a class="btn-ghost" id="docsLink" href="https://gridwise-llm-api.vercel.app/docs" target="_blank" rel="noopener">API docs</a>
+      <a class="btn-ghost hide-sm" href="https://github.com/AsadShibli/gridwise-llm-fastapi" target="_blank" rel="noopener">GitHub</a>
+      <button class="btn-ghost" id="themeBtn" aria-label="Toggle theme">◐</button>
+    </div>
+  </header>
+
+  <main class="page">
+    <section class="intro">
+      <h1>Operator notes in. Cheapest safe schedule out.</h1>
+      <p>A campus runs on grid, rooftop solar and a battery. Operators leave short notes like
+        <em>“wash the panels from noon to 2 PM”</em>. GridWise reads them with an LLM, checks the
+        result, and solves a linear program for the lowest-cost 24-hour plan.</p>
+      <ol class="pipeline" id="pipeline">
+        <li data-step="0"><b>1</b> LLM reads notes</li>
+        <li data-step="1"><b>2</b> Guardrails validate</li>
+        <li data-step="2"><b>3</b> LP optimizer</li>
+        <li data-step="3"><b>4</b> Replay check</li>
+        <li data-step="4"><b>5</b> Schedule</li>
+      </ol>
+    </section>
+
+    <div class="layout">
+      <!-- Inputs -->
+      <section class="card inputs">
+        <div class="card-head">
+          <h2>Scenario</h2>
+          <select id="sampleSelect" aria-label="Choose a sample scenario"></select>
+        </div>
+
+        <div class="field-head">
+          <h3>Operator notes</h3>
+          <span class="muted small">1–3 notes · distractors allowed</span>
+        </div>
+        <div id="notes"></div>
+        <button class="btn-link" id="addNote">+ Add note</button>
+
+        <h3>Battery</h3>
+        <div class="battery" id="battery"></div>
+
+        <h3>24-hour profile</h3>
+        <div class="profile" id="profile"></div>
+        <div class="legend small"><i class="sw demand"></i>Demand <i class="sw solar"></i>Solar <i class="sw tariff line"></i>Tariff</div>
+
+        <button class="btn-primary" id="runBtn">
+          <span class="run-label">Run live</span><span class="spinner"></span>
+        </button>
+        <p class="muted small center" id="runHint">Calls the live API · Ctrl + Enter</p>
+      </section>
+
+      <!-- Results -->
+      <section class="results">
+        <div class="banner" id="banner" hidden></div>
+
+        <div class="source" id="source"></div>
+
+        <div class="kpis" id="kpis"></div>
+
+        <div class="card">
+          <div class="card-head"><h2>How the LLM read each note</h2></div>
+          <div class="directives" id="directives"></div>
+        </div>
+
+        <div class="card">
+          <div class="card-head">
+            <h2>Hourly energy mix</h2>
+            <div class="legend small"><i class="sw solar"></i>Solar <i class="sw dis"></i>Battery <i class="sw grid"></i>Grid <i class="sw chg"></i>Charging <i class="sw demand line"></i>Demand</div>
+          </div>
+          <div class="chart" id="mixChart"></div>
+        </div>
+
+        <div class="card">
+          <div class="card-head">
+            <h2>Battery charge vs. tariff</h2>
+            <div class="legend small"><i class="sw dis"></i>Battery kWh <i class="sw tariff line"></i>Tariff (BDT/kWh) <i class="sw reserve"></i>Directive window</div>
+          </div>
+          <div class="chart" id="socChart"></div>
+        </div>
+
+        <details class="card">
+          <summary><h2>Hourly plan</h2><span class="muted small">24 rows</span></summary>
+          <div class="table-wrap"><table id="planTable"></table></div>
+        </details>
+
+        <details class="card">
+          <summary><h2>Raw JSON</h2><span class="muted small">request &amp; response</span></summary>
+          <div class="raw-tabs">
+            <button class="tab on" data-raw="res">Response</button>
+            <button class="tab" data-raw="req">Request</button>
+            <button class="tab" data-raw="curl">cURL</button>
+            <span class="spacer"></span>
+            <button class="btn-ghost" id="copyRaw">Copy</button>
+          </div>
+          <pre class="raw" id="raw"></pre>
+        </details>
+      </section>
+    </div>
+  </main>
+
+  <div class="tooltip" id="tip" hidden></div>
+  <div class="toast" id="toast"></div>
+  <script src="app.js"></script>
+</body>
+</html>
